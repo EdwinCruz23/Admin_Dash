@@ -9,10 +9,6 @@ from dotenv import load_dotenv
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
-import os
-
-DATABASE_URL = os.getenv("DATABASE_URL")
-# Tu lógica para conectar a PostgreSQL usando DATABASE_URL
 
 load_dotenv()
 
@@ -47,14 +43,21 @@ cloudinary.config(
     secure = True
 )
 
+# --- CONEXIÓN OPTIMIZADA A BASE DE DATOS ---
 def get_db_connection():
-    conn = psycopg2.connect(
-        host=os.getenv('DB_HOST'),
-        database=os.getenv('DB_NAME'),
-        user=os.getenv('DB_USER'),
-        password=os.getenv('DB_PASS'),
-        port=os.getenv('DB_PORT')
-    )
+    # Si existe DATABASE_URL (en Render/Railway), la usa directamente.
+    # Si no, recurre a las variables locales del .env
+    db_url = os.getenv("DATABASE_URL")
+    if db_url:
+        conn = psycopg2.connect(db_url)
+    else:
+        conn = psycopg2.connect(
+            host=os.getenv('DB_HOST'),
+            database=os.getenv('DB_NAME'),
+            user=os.getenv('DB_USER'),
+            password=os.getenv('DB_PASS'),
+            port=os.getenv('DB_PORT')
+        )
     return conn
 
 def add_bar_percent(rows, value_index):
@@ -74,40 +77,46 @@ def add_bar_percent(rows, value_index):
 def index():
     return render_template('login.html')
 
-@app.route('/login', methods=['POST'])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
-    correo = request.form['correo']
-    password = request.form['password']
-    
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute('SELECT "contraseña", rol, nombre FROM usuarios WHERE correo = %s', (correo,))
-    result = cur.fetchone()
-    cur.close()
-    conn.close()
+    if request.method == 'POST':
+        correo = request.form['correo']
+        password = request.form['password']
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute('SELECT "contraseña", rol, nombre FROM usuarios WHERE correo = %s', (correo,))
+        result = cur.fetchone()
+        cur.close()
+        conn.close()
 
-    if result:
-        stored_password, role, name = result[0], result[1], result[2]
-        password_ok = verify_password(stored_password, password)
+        if result:
+            stored_password, role, name = result[0], result[1], result[2]
+            password_ok = verify_password(stored_password, password)
 
-        if password_ok:
-            # If the password was stored in plaintext, upgrade to the shorter HMAC-SHA1 hash.
-            if stored_password and not stored_password.startswith('sha1$'):
-                conn = get_db_connection()
-                cur = conn.cursor()
-                cur.execute('UPDATE usuarios SET "contraseña" = %s WHERE correo = %s', (hash_password(password), correo))
-                conn.commit()
-                cur.close()
-                conn.close()
+            if password_ok:
+                # Actualizar contraseña si estaba en texto plano
+                if stored_password and not stored_password.startswith('sha1$'):
+                    conn = get_db_connection()
+                    cur = conn.cursor()
+                    cur.execute('UPDATE usuarios SET "contraseña" = %s WHERE correo = %s', (hash_password(password), correo))
+                    conn.commit()
+                    cur.close()
+                    conn.close()
 
-            session['user'] = name
-            session['rol'] = role
-            if role and (role.upper() == 'ADMINISTRADOR' or role.upper() == 'ADMIN'):
-                return redirect(url_for('admin_dashboard'))
-            else:
-                return redirect(url_for('user_dashboard'))
-    flash('Credenciales inválidas', 'danger')
-    return redirect(url_for('index'))
+                session['user'] = name
+                session['rol'] = role
+                if role and (role.upper() == 'ADMINISTRADOR' or role.upper() == 'ADMIN'):
+                    return redirect(url_for('admin_dashboard'))
+                else:
+                    return redirect(url_for('user_dashboard'))
+                    
+            flash('Credenciales inválidas', 'danger')
+        else:
+            flash('El usuario no existe', 'danger')
+        return redirect(url_for('index'))
+        
+    return render_template('login.html')
 
 @app.route('/administrador')
 def admin_dashboard():
@@ -134,6 +143,7 @@ def admin_dashboard():
         resultado_ventas = cur.fetchone()
         total_vent = resultado_ventas[0] if resultado_ventas else 0
         
+        # Artículos vendidos totales
         cur.execute('SELECT COALESCE(SUM(cantidad), 0) FROM ventas')
         resultado_articulos = cur.fetchone()
         total_articulos_vendidos = resultado_articulos[0] if resultado_articulos else 0
@@ -143,7 +153,7 @@ def admin_dashboard():
         resultado_ingresos = cur.fetchone()
         total_ingre = resultado_ingresos[0] if resultado_ingresos and resultado_ingresos[0] is not None else 0
         
-        # NUEVO: Contar cuántos productos tienen stock igual a 0 en tiempo real
+        # Contar cuántos productos tienen stock igual a 0 en tiempo real
         cur.execute('SELECT COUNT(*) FROM productos WHERE stock = 0')
         resultado_sin_stock = cur.fetchone()
         total_sin_stk = resultado_sin_stock[0] if resultado_sin_stock else 0
@@ -304,7 +314,6 @@ def admin_clientes():
     if 'rol' in session and (session['rol'].upper() == 'ADMINISTRADOR' or session['rol'].upper() == 'ADMIN'):
         conn = get_db_connection()
         cur = conn.cursor()
-        # Traemos de forma exacta las columnas de tu BD: id_clientes, nombre, apellido, correo, contraseña, telefono
         cur.execute('SELECT id_clientes, nombre, apellido, correo, "contraseña", telefono FROM clientes ORDER BY id_clientes ASC')
         clientes = cur.fetchall()
 
@@ -394,15 +403,13 @@ def eliminar_cliente(id):
 
     return redirect(url_for('admin_clientes'))
 
-# --- NUEVO: VISTA DE AUDITORÍA DE VENTAS (ADMINISTRADOR) ---
+# --- VISTA DE AUDITORÍA DE VENTAS ---
 
 @app.route('/admin_ventas')
 def admin_ventas():
     if 'rol' in session and (session['rol'].upper() == 'ADMINISTRADOR' or session['rol'].upper() == 'ADMIN'):
         conn = get_db_connection()
         cur = conn.cursor()
-        
-        # Consulta estructurada según los atributos exactos de tu base de datos
         cur.execute('''
             SELECT id_ventas, id_producto, id_clientes, cantidad, total, fecha_salida, talla, referencia_pago 
             FROM ventas 
@@ -417,7 +424,7 @@ def admin_ventas():
         flash('Acceso denegado.', 'danger')
         return redirect(url_for('index'))
 
-# --- CRUD PRODUCTOS AJUSTADO A TU BASE DE DATOS ---
+# --- CRUD PRODUCTOS ---
 
 @app.route('/guardar_producto', methods=['POST'])
 def guardar_producto():
