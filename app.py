@@ -10,9 +10,12 @@ import cloudinary
 import cloudinary.uploader
 import cloudinary.api
 
+# Carga variables locales si existe un archivo .env (Local)
 load_dotenv()
 
 app = Flask(__name__)
+
+# Llave secreta protegida
 app.secret_key = os.getenv('SECRET_KEY', 'clave_secreta_muy_dificil_123').strip()
 
 # --- UTILIDADES DE CONTRASEÑAS ---
@@ -35,23 +38,39 @@ def verify_password(stored_password: str, password: str) -> bool:
         return hmac.compare_digest(stored_password, hash_password(password))
     return stored_password == password
 
-# --- CONFIGURACIÓN DE CLOUDINARY OPTIMIZADA Y BLINDADA ---
-# Se utiliza .strip() para evitar errores de firma "Invalid Signature" por saltos de línea o espacios
-cloudinary.config(
-    cloud_name = str(os.getenv('CLOUDINARY_CLOUD_NAME', 'dt0rtdlhi')).strip(),
-    api_key    = str(os.getenv('CLOUDINARY_API_KEY', '432936586413485')).strip(),
-    api_secret = str(os.getenv('CLOUDINARY_API_SECRET', '6YXdQ-HXOkOmZbk_DQHjGsZU80k')).strip(),
-    secure = True
-)
 
-# --- CONEXIÓN OPTIMIZADA A BASE DE DATOS ---
+# --- CONFIGURACIÓN DE CLOUDINARY BLINDADA ---
+# Extraemos directo del entorno limpiando espacios sucios. 
+# Si no existen en el entorno, usa los de tu .env local automáticamente.
+CLOUD_NAME = os.getenv('CLOUDINARY_CLOUD_NAME')
+API_KEY = os.getenv('CLOUDINARY_API_KEY')
+API_SECRET = os.getenv('CLOUDINARY_API_SECRET')
+
+if CLOUD_NAME and API_KEY and API_SECRET:
+    cloudinary.config(
+        cloud_name = CLOUD_NAME.strip(),
+        api_key    = API_KEY.strip(),
+        api_secret = API_SECRET.strip(),
+        secure = True
+    )
+else:
+    # Fallback de desarrollo por si tu .env local no cargó correctamente
+    cloudinary.config(
+        cloud_name = "dt0rtdlhi",
+        api_key    = "432936586413485",
+        api_secret = "6YXdQ-HXOkOmZbk_DQHjGsZU80k",
+        secure = True
+    )
+
+
+# --- CONEXIÓN A BASE DE DATOS ---
 def get_db_connection():
-    # Si existe DATABASE_URL (en Render), la usa directamente para conectarse a Railway en la nube.
     db_url = os.getenv("DATABASE_URL")
     if db_url:
+        # Modo Producción (Render)
         conn = psycopg2.connect(db_url.strip())
     else:
-        # Respaldo con los datos correctos de tu servidor activo en Railway si corres en Localhost
+        # Modo Desarrollo (Localhost conectando a Railway)
         conn = psycopg2.connect(
             host=os.getenv('DB_HOST', 'yamanote.proxy.rlwy.net').strip(),
             database=os.getenv('DB_NAME', 'railway').strip(),
@@ -60,6 +79,7 @@ def get_db_connection():
             port=os.getenv('DB_PORT', '27092').strip()
         )
     return conn
+
 
 def add_bar_percent(rows, value_index):
     max_value = max([row[value_index] or 0 for row in rows], default=0)
@@ -77,6 +97,7 @@ def add_bar_percent(rows, value_index):
 @app.route('/')
 def index():
     return render_template('login.html')
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -96,7 +117,6 @@ def login():
             password_ok = verify_password(stored_password, password)
 
             if password_ok:
-                # Actualizar contraseña si estaba en texto plano
                 if stored_password and not stored_password.startswith('sha1$'):
                     conn = get_db_connection()
                     cur = conn.cursor()
@@ -120,42 +140,36 @@ def login():
         
     return render_template('login.html')
 
+
 @app.route('/administrador')
 def admin_dashboard():
     if 'rol' in session and (session['rol'].upper() == 'ADMINISTRADOR' or session['rol'].upper() == 'ADMIN'):
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # 1. Obtener la lista de usuarios organizada por ID
         cur.execute('SELECT id_usuario, nombre, apellido, correo, telefono, rol, fecha_registro FROM usuarios ORDER BY id_usuario ASC')
         usuarios = cur.fetchall()
         
-        # 2. Contar en tiempo real los productos registrados en la base de datos
         cur.execute('SELECT COUNT(*) FROM productos')
         resultado_productos = cur.fetchone()
         total_prod = resultado_productos[0] if resultado_productos else 0
         
-        # Contar en tiempo real los clientes registrados para la tarjeta del Dashboard
         cur.execute('SELECT COUNT(*) FROM clientes')
         resultado_clientes = cur.fetchone()
         total_clie = resultado_clientes[0] if resultado_clientes else 0
         
-        # Contar en tiempo real el total de ventas para la tarjeta del Dashboard
         cur.execute('SELECT COUNT(*) FROM ventas')
         resultado_ventas = cur.fetchone()
         total_vent = resultado_ventas[0] if resultado_ventas else 0
         
-        # Artículos vendidos totales
         cur.execute('SELECT COALESCE(SUM(cantidad), 0) FROM ventas')
         resultado_articulos = cur.fetchone()
         total_articulos_vendidos = resultado_articulos[0] if resultado_articulos else 0
 
-        # Calcular ingresos del día para que la tarjeta "Ingresos hoy" sea exacta
         cur.execute('SELECT COALESCE(SUM(total), 0) FROM ventas WHERE fecha_salida::date = CURRENT_DATE')
         resultado_ingresos = cur.fetchone()
         total_ingre = resultado_ingresos[0] if resultado_ingresos and resultado_ingresos[0] is not None else 0
         
-        # Contar cuántos productos tienen stock igual a 0 en tiempo real
         cur.execute('SELECT COUNT(*) FROM productos WHERE stock = 0')
         resultado_sin_stock = cur.fetchone()
         total_sin_stk = resultado_sin_stock[0] if resultado_sin_stock else 0
@@ -203,7 +217,6 @@ def admin_dashboard():
         cur.close()
         conn.close()
         
-        # 3. Mandar todas las variables calculadas a la plantilla admin.html
         return render_template('admin.html', 
                                usuarios=usuarios, 
                                total_productos=total_prod, 
@@ -219,6 +232,7 @@ def admin_dashboard():
     else:
         flash('Acceso denegado.', 'danger')
         return redirect(url_for('index'))
+
 
 @app.route('/usuario')
 def user_dashboard():
@@ -244,7 +258,8 @@ def user_dashboard():
         )
     return redirect(url_for('index'))
 
-# --- RUTAS CRUD UNIVERSALES (ADMIN - USUARIOS) ---
+
+# --- CRUD USUARIOS ---
 
 @app.route('/guardar_usuario', methods=['POST'])
 def guardar_usuario():
@@ -292,6 +307,7 @@ def guardar_usuario():
 
     return redirect(url_for('admin_dashboard'))
 
+
 @app.route('/eliminar_usuario/<int:id>')
 def eliminar_usuario(id):
     conn = get_db_connection()
@@ -308,6 +324,7 @@ def eliminar_usuario(id):
         conn.close()
 
     return redirect(url_for('admin_dashboard'))
+
 
 # --- CRUD DE CLIENTES ---
 
@@ -342,6 +359,7 @@ def admin_clientes():
     else:
         flash('Acceso denegado.', 'danger')
         return redirect(url_for('index'))
+
 
 @app.route('/guardar_cliente', methods=['POST'])
 def guardar_cliente():
@@ -388,6 +406,7 @@ def guardar_cliente():
 
     return redirect(url_for('admin_clientes'))
 
+
 @app.route('/eliminar_cliente/<int:id>')
 def eliminar_cliente(id):
     conn = get_db_connection()
@@ -404,6 +423,7 @@ def eliminar_cliente(id):
         conn.close()
 
     return redirect(url_for('admin_clientes'))
+
 
 # --- VISTA DE AUDITORÍA DE VENTAS ---
 
@@ -426,7 +446,8 @@ def admin_ventas():
         flash('Acceso denegado.', 'danger')
         return redirect(url_for('index'))
 
-# --- CRUD PRODUCTOS ---
+
+# --- CRUD PRODUCTOS (CON SUBIDA OPTIMIZADA A CLOUDINARY) ---
 
 @app.route('/guardar_producto', methods=['POST'])
 def guardar_producto():
@@ -444,7 +465,11 @@ def guardar_producto():
     
     if file and file.filename != '':
         try:
-            upload_result = cloudinary.uploader.upload(file, folder="productos_catalogo")
+            # Subida directa delegando la firma automática al SDK oficial
+            upload_result = cloudinary.uploader.upload(
+                file, 
+                folder="productos_catalogo"
+            )
             cloudinary_url = upload_result.get('secure_url')
         except Exception as upload_error:
             flash(f'Error al subir tu imagen a la nube: {upload_error}', 'danger')
@@ -488,6 +513,7 @@ def guardar_producto():
 
     return redirect(url_for('user_dashboard'))
 
+
 @app.route('/eliminar_producto/<int:id>')
 def eliminar_producto(id):
     conn = get_db_connection()
@@ -505,10 +531,12 @@ def eliminar_producto(id):
 
     return redirect(url_for('user_dashboard'))
 
+
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('index'))
+
 
 if __name__ == '__main__':
     app.run(debug=True)
