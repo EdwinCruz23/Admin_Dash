@@ -13,7 +13,7 @@ import cloudinary.api
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'clave_secreta_muy_dificil_123')
+app.secret_key = os.getenv('SECRET_KEY', 'clave_secreta_muy_dificil_123').strip()
 
 # --- UTILIDADES DE CONTRASEÑAS ---
 
@@ -35,29 +35,29 @@ def verify_password(stored_password: str, password: str) -> bool:
         return hmac.compare_digest(stored_password, hash_password(password))
     return stored_password == password
 
-# --- CONFIGURACIÓN DE CLOUDINARY OPTIMIZADA ---
-# Usa las variables del entorno (en Render) o tus llaves locales por defecto si no existen en el entorno.
+# --- CONFIGURACIÓN DE CLOUDINARY OPTIMIZADA Y BLINDADA ---
+# Se utiliza .strip() para evitar errores de firma "Invalid Signature" por saltos de línea o espacios
 cloudinary.config(
-    cloud_name = os.getenv('CLOUDINARY_CLOUD_NAME', 'dt0rtdlhi'),
-    api_key = os.getenv('CLOUDINARY_API_KEY', '432936586413485'),
-    api_secret = os.getenv('CLOUDINARY_API_SECRET', '6YXdQ-HXOkOmZbk_DQHjGsZU80k'),
+    cloud_name = str(os.getenv('CLOUDINARY_CLOUD_NAME', 'dt0rtdlhi')).strip(),
+    api_key    = str(os.getenv('CLOUDINARY_API_KEY', '432936586413485')).strip(),
+    api_secret = str(os.getenv('CLOUDINARY_API_SECRET', '6YXdQ-HXOkOmZbk_DQHjGsZU80k')).strip(),
     secure = True
 )
 
 # --- CONEXIÓN OPTIMIZADA A BASE DE DATOS ---
 def get_db_connection():
-    # Si existe DATABASE_URL (en Render/Railway), la usa directamente.
-    # Si no, recurre a las variables locales del .env
+    # Si existe DATABASE_URL (en Render), la usa directamente para conectarse a Railway en la nube.
     db_url = os.getenv("DATABASE_URL")
     if db_url:
-        conn = psycopg2.connect(db_url)
+        conn = psycopg2.connect(db_url.strip())
     else:
+        # Respaldo con los datos correctos de tu servidor activo en Railway si corres en Localhost
         conn = psycopg2.connect(
-            host=os.getenv('DB_HOST', 'localhost'),
-            database=os.getenv('DB_NAME', 'BD_tenis'),
-            user=os.getenv('DB_USER', 'postgres'),
-            password=os.getenv('DB_PASS', '110512'),
-            port=os.getenv('DB_PORT', '5432')
+            host=os.getenv('DB_HOST', 'yamanote.proxy.rlwy.net').strip(),
+            database=os.getenv('DB_NAME', 'railway').strip(),
+            user=os.getenv('DB_USER', 'postgres').strip(),
+            password=os.getenv('DB_PASS', '110512').strip(),
+            port=os.getenv('DB_PORT', '27092').strip()
         )
     return conn
 
@@ -112,7 +112,6 @@ def login():
                 else:
                     return redirect(url_for('user_dashboard'))
             else:
-                # Corregido: Ahora solo manda la alerta si la contraseña estuvo mal
                 flash('Credenciales inválidas', 'danger')
         else:
             flash('El usuario no existe', 'danger')
