@@ -39,18 +39,26 @@ def verify_password(stored_password: str, password: str) -> bool:
     return stored_password == password
 
 
-# --- CONFIGURACIÓN DE CLOUDINARY PERFECCIONADA ---
-# Forzamos los valores correctos de tu cuenta real para evitar conflictos de variables mal puestas en Render.
-CLOUD_NAME = os.getenv('CLOUDINARY_CLOUD_NAME', 'dt0rtdlhi').strip()
-API_KEY = os.getenv('CLOUDINARY_API_KEY', '432936586413485').strip()
-API_SECRET = os.getenv('CLOUDINARY_API_SECRET', '6YXdQ-HXOkOmZbk_DQHjGsZU80k').strip()
+# --- CONFIGURACIÓN DE CLOUDINARY ---
+# Intenta usar CLOUDINARY_URL primero (recomendado en Render/Railway)
+# Si no existe, usa variables individuales
+cloudinary_url = os.getenv('CLOUDINARY_URL')
 
-cloudinary.config(
-    cloud_name = CLOUD_NAME,
-    api_key    = API_KEY,
-    api_secret = API_SECRET,
-    secure = True
-)
+if cloudinary_url:
+    # Patrón estándar: cloudinary://API_KEY:API_SECRET@CLOUD_NAME
+    cloudinary.config(cloudinary_url=cloudinary_url, secure=True)
+else:
+    # Fallback a variables individuales
+    cloudinary.config(
+        cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME', '').strip(),
+        api_key=os.getenv('CLOUDINARY_API_KEY', '').strip(),
+        api_secret=os.getenv('CLOUDINARY_API_SECRET', '').strip(),
+        secure=True
+    )
+
+# Validación: si no hay configuración válida, error claro
+if not cloudinary.config().cloud_name:
+    raise ValueError('❌ CLOUDINARY no está configurado. Revisa tus variables de ambiente.')
 
 
 # --- CONEXIÓN A BASE DE DATOS ---
@@ -455,8 +463,13 @@ def guardar_producto():
     
     if file and file.filename != '':
         try:
-            # Subida directa a la raíz para quitar fallos de firmas dinámicas por culpa de carpetas estrictas
-            upload_result = cloudinary.uploader.upload(file)
+            # Usa upload_preset sin firma para evitar problemas de autenticación en producción
+            upload_preset = os.getenv('CLOUDINARY_UPLOAD_PRESET', 'punto_venta_upload')
+            upload_result = cloudinary.uploader.upload(
+                file,
+                upload_preset=upload_preset,
+                unsigned=True
+            )
             cloudinary_url = upload_result.get('secure_url')
         except Exception as upload_error:
             flash(f'Error al subir tu imagen a la nube: {upload_error}', 'danger')
