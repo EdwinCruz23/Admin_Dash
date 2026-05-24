@@ -13,7 +13,7 @@ import cloudinary.api
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY')
+app.secret_key = os.getenv('SECRET_KEY', 'clave_secreta_muy_dificil_123')
 
 # --- UTILIDADES DE CONTRASEÑAS ---
 
@@ -35,11 +35,12 @@ def verify_password(stored_password: str, password: str) -> bool:
         return hmac.compare_digest(stored_password, hash_password(password))
     return stored_password == password
 
-# --- CONFIGURACIÓN DE CLOUDINARY ---
+# --- CONFIGURACIÓN DE CLOUDINARY OPTIMIZADA ---
+# Usa las variables del entorno (en Render) o tus llaves locales por defecto si no existen en el entorno.
 cloudinary.config(
-    cloud_name = "dt0rtdlhi",
-    api_key = "432936586413485",
-    api_secret = os.getenv('CLOUDINARY_API_SECRET'),
+    cloud_name = os.getenv('CLOUDINARY_CLOUD_NAME', 'dt0rtdlhi'),
+    api_key = os.getenv('CLOUDINARY_API_KEY', '432936586413485'),
+    api_secret = os.getenv('CLOUDINARY_API_SECRET', '6YXdQ-HXOkOmZbk_DQHjGsZU80k'),
     secure = True
 )
 
@@ -52,11 +53,11 @@ def get_db_connection():
         conn = psycopg2.connect(db_url)
     else:
         conn = psycopg2.connect(
-            host=os.getenv('DB_HOST'),
-            database=os.getenv('DB_NAME'),
-            user=os.getenv('DB_USER'),
-            password=os.getenv('DB_PASS'),
-            port=os.getenv('DB_PORT')
+            host=os.getenv('DB_HOST', 'localhost'),
+            database=os.getenv('DB_NAME', 'BD_tenis'),
+            user=os.getenv('DB_USER', 'postgres'),
+            password=os.getenv('DB_PASS', '110512'),
+            port=os.getenv('DB_PORT', '5432')
         )
     return conn
 
@@ -110,10 +111,12 @@ def login():
                     return redirect(url_for('admin_dashboard'))
                 else:
                     return redirect(url_for('user_dashboard'))
-                    
-            flash('Credenciales inválidas', 'danger')
+            else:
+                # Corregido: Ahora solo manda la alerta si la contraseña estuvo mal
+                flash('Credenciales inválidas', 'danger')
         else:
             flash('El usuario no existe', 'danger')
+            
         return redirect(url_for('index'))
         
     return render_template('login.html')
