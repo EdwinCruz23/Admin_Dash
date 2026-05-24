@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin | Gestión de Usuarios</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="admin-body">
+    <div class="background-animation"></div>
+
+    <div class="alert-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}">
+                <i class="fas {% if category == 'success' %}fa-check-circle{% else %}fa-exclamation-triangle{% endif %}"></i>
+                {{ message }}
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+    </div>
+    
+    <div class="admin-container">
+        <header class="admin-header">
+            <h1 style="color: white;"><i class="fas fa-chart-line"></i> Panel de Administración</h1>
+    
+            <a href="/logout" class="logout-btn">
+                <span>Salir</span>
+                <i class="fas fa-sign-out-alt"></i>
+            </a>
+        </header>
+
+        <div class="dashboard-cards-grid">
+            
+            <a href="/usuario" style="text-decoration: none; color: inherit; display: block;">
+                <div class="dash-card spec-card">
+                    <div class="card-icon-wrapper prod-icon">
+                        <i class="fas fa-boxes"></i>
+                    </div>
+                    <div class="card-info">
+                        <span class="card-label">PRODUCTOS</span>
+                        <span class="card-value">{{ total_productos | default(0) }}</span>
+                    </div>
+                </div>
+            </a>
+
+            <a href="/admin_clientes" style="text-decoration: none; color: inherit; display: block;">
+                <div class="dash-card spec-card">
+                    <div class="card-icon-wrapper client-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="card-info">
+                        <span class="card-label">CLIENTES</span>
+                        <span class="card-value">{{ total_clientes | default(0) }}</span>
+                    </div>
+                </div>
+            </a>
+
+            <a href="/admin_ventas" style="text-decoration: none; color: inherit; display: block;">
+                <div class="dash-card spec-card">
+                    <div class="card-icon-wrapper sales-icon">
+                        <i class="fas fa-receipt"></i>
+                    </div>
+                    <div class="card-info">
+                    <span class="card-label">VENTAS</span>
+                    <span class="card-value">{{ total_ventas | default(0) }}</span>
+                </div>
+            </div>
+        </a>
+
+            <div class="dash-card spec-card">
+                <div class="card-icon-wrapper income-icon">
+                    <i class="fas fa-dollar-sign"></i>
+                </div>
+                <div class="card-info">
+                    <span class="card-label">INGRESOS HOY</span>
+                    <span class="card-value">${{ total_ingresos | default(0) }}</span>
+                </div>
+            </div>
+
+            <button class="dash-card spec-card dash-card-button" type="button" onclick="openModal('stockModal')">
+                <div class="card-icon-wrapper alert-icon">
+                    <i class="fas fa-exclamation-circle"></i>
+                </div>
+                <div class="card-info">
+                    <span class="card-label">SIN STOCK</span>
+                    <span class="card-value">{{ total_sin_stock | default(0) }}</span>
+                </div>
+            </button>
+
+        </div>
+
+        <section class="analytics-grid">
+            <article class="analytics-panel featured-panel">
+                <div class="panel-heading">
+                    <div>
+                        <span class="section-kicker">Movimiento de ventas</span>
+                        <h2>Productos más vendidos</h2>
+                    </div>
+                    <span class="metric-pill">{{ total_articulos_vendidos | default(0) }} piezas vendidas</span>
+                </div>
+                <div class="bar-list">
+                    {% for producto in productos_mas_vendidos %}
+                    <div class="bar-row">
+                        <div class="bar-row-info">
+                            <strong>{{ producto[1] }}</strong>
+                            <span>{{ producto[2] }} pza(s) · ${{ producto[3] }}</span>
+                        </div>
+                        <div class="bar-track">
+                            <span class="bar-fill success" style="--bar-width: {{ producto[4] }}%;"></span>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="empty-state compact">
+                        <i class="fas fa-receipt"></i>
+                        <p>Aún no hay ventas registradas.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </article>
+
+            <article class="analytics-panel">
+                <div class="panel-heading">
+                    <div>
+                        <span class="section-kicker">Oportunidad</span>
+                        <h2>Productos que menos se venden</h2>
+                    </div>
+                </div>
+                <div class="bar-list">
+                    {% for producto in productos_menos_vendidos %}
+                    <div class="bar-row">
+                        <div class="bar-row-info">
+                            <strong>{{ producto[1] }}</strong>
+                            <span>{{ producto[2] }} pza(s) · ${{ producto[3] }}</span>
+                        </div>
+                        <div class="bar-track">
+                            <span class="bar-fill muted-fill" style="--bar-width: {{ producto[4] }}%;"></span>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="empty-state compact">
+                        <i class="fas fa-box-open"></i>
+                        <p>No hay productos para comparar.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </article>
+
+            <article class="analytics-panel">
+                <div class="panel-heading">
+                    <div>
+                        <span class="section-kicker">Inventario crítico</span>
+                        <h2>Stock por terminarse</h2>
+                    </div>
+                    <a href="/usuario" class="mini-link">Ver inventario</a>
+                </div>
+                <div class="bar-list">
+                    {% for producto in productos_stock_bajo %}
+                    <div class="bar-row">
+                        <div class="bar-row-info">
+                            <strong>{{ producto[1] }}</strong>
+                            <span>{{ producto[2] }} disponibles · {{ producto[3] | default('Sin marca', true) }}</span>
+                        </div>
+                        <div class="bar-track">
+                            <span class="bar-fill warning" style="--bar-width: {{ producto[6] }}%;"></span>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="empty-state compact">
+                        <i class="fas fa-check-circle"></i>
+                        <p>No hay productos cerca de agotarse.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </article>
+        </section>
+
+        <div class="modal-overlay" id="stockModal" aria-hidden="true">
+            <div class="floating-modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="stockModalTitle">
+                <button class="modal-close" type="button" onclick="closeModal('stockModal')" aria-label="Cerrar">
+                    <i class="fas fa-times"></i>
+                </button>
+                <div class="modal-header">
+                    <span class="modal-icon danger"><i class="fas fa-box-open"></i></span>
+                    <div>
+                        <h2 id="stockModalTitle">Productos sin stock</h2>
+                        <p>Artículos agotados que necesitan reposición.</p>
+                    </div>
+                </div>
+
+                <div class="stock-list">
+                    {% for producto in productos_sin_stock %}
+                    <article class="stock-item">
+                        <img src="{{ producto[8] }}" alt="{{ producto[1] }}" class="stock-thumb">
+                        <div class="stock-detail">
+                            <strong>{{ producto[1] }}</strong>
+                            <span>{{ producto[2] | default('Sin descripción', true) }}</span>
+                            <div class="stock-meta">
+                                <span><i class="fas fa-hashtag"></i> {{ producto[0] }}</span>
+                                <span><i class="fas fa-tag"></i> {{ producto[5] | default('Sin marca', true) }}</span>
+                                <span><i class="fas fa-ruler"></i> {{ producto[6] | default('N/A', true) }}</span>
+                                <span><i class="fas fa-palette"></i> {{ producto[7] | default('N/A', true) }}</span>
+                                <span><i class="fas fa-dollar-sign"></i> {{ producto[3] }}</span>
+                            </div>
+                        </div>
+                    </article>
+                    {% else %}
+                    <div class="empty-state">
+                        <i class="fas fa-check-circle"></i>
+                        <p>No hay productos agotados por ahora.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <hr style="border: 0; height: 1px; background: rgba(255,255,255,0.1); margin-bottom: 30px;">
+
+        <button class="add-new-btn" onclick="resetFormForNew()">
+            <i class="fas fa-plus-circle"></i> Agregar Nuevo Usuario
+        </button>
+
+        <div class="crud-card" id="form-section">
+            <h3 id="form-title" style="color: white; margin-top: 0;">Agregar Nuevo Usuario</h3>
+            <form action="/guardar_usuario" method="POST" id="userForm">
+                <input type="hidden" name="id_usuario" id="id_usuario">
+                
+                <div class="form-grid">
+                    <div class="input-group">
+                        <i class="fas fa-user icon-input"></i>
+                        <input type="text" name="nombre" id="nombre" placeholder="Nombre" required>
+                    </div>
+                    <div class="input-group">
+                        <i class="fas fa-signature icon-input"></i>
+                        <input type="text" name="apellido" id="apellido" placeholder="Apellido" required>
+                    </div>
+                    <div class="input-group">
+                        <i class="fas fa-envelope icon-input"></i>
+                        <input type="email" name="correo" id="correo" placeholder="Correo" required>
+                    </div>
+                    <div class="input-group">
+                        <i class="fas fa-lock icon-input"></i>
+                        <input type="password" name="password" id="password" placeholder="Contraseña">
+                        <i class="fas fa-eye toggle-password" id="togglePassword"></i>
+                    </div>
+                    <div class="input-group">
+                        <i class="fas fa-phone icon-input"></i>
+                        <input type="text" name="telefono" id="telefono" placeholder="Teléfono">
+                    </div>
+                    <div class="input-group">
+                        <i class="fas fa-user-tag icon-input"></i>
+                        <select name="rol" id="rol" required>
+                            <option value="USUARIO">Usuario</option>
+                            <option value="ADMINISTRADOR">Administrador</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="login-btn" id="btn-submit">Registrar Usuario</button>
+            </form>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nombre</th>
+                        <th>Correo</th>
+                        <th>Rol</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in usuarios %}
+                    <tr>
+                        <td>{{ user[0] }}</td>
+                        <td>{{ user[1] }} {{ user[2] }}</td>
+                        <td>{{ user[3] }}</td>
+                        <td><span class="badge {{ user[5]|lower }}">{{ user[5] }}</span></td>
+                        <td>
+                            <button class="action-btn edit" 
+                                    data-id="{{ user[0] }}"
+                                    data-nombre="{{ user[1] }}"
+                                    data-apellido="{{ user[2] }}"
+                                    data-correo="{{ user[3] }}"
+                                    data-telefono="{{ user[4] | default('') }}"
+                                    data-rol="{{ user[5] }}"
+                                    onclick="editUser(this)">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <a href="/eliminar_usuario/{{ user[0] }}" class="action-btn delete" onclick="return confirm('¿Seguro que deseas eliminar este usuario?')">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Función para limpiar el formulario (Nuevo Usuario)
+        function resetFormForNew() {
+            document.getElementById('userForm').reset();
+            document.getElementById('id_usuario').value = "";
+            document.getElementById('form-title').innerText = "Agregar Nuevo Usuario";
+            document.getElementById('btn-submit').innerText = "Registrar Usuario";
+            document.getElementById('password').required = true;
+            document.getElementById('form-section').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Función para editar optimizada (recibe el elemento del botón completo)
+        function editUser(button) {
+            const id = button.getAttribute('data-id');
+            const nom = button.getAttribute('data-nombre');
+            const ape = button.getAttribute('data-apellido');
+            const cor = button.getAttribute('data-correo');
+            const tel = button.getAttribute('data-telefono');
+            const rol = button.getAttribute('data-rol');
+
+            document.getElementById('form-title').innerText = "Modificar Usuario (ID: " + id + ")";
+            document.getElementById('id_usuario').value = id;
+            document.getElementById('nombre').value = nom;
+            document.getElementById('apellido').value = ape;
+            document.getElementById('correo').value = cor;
+            document.getElementById('password').value = "";
+            document.getElementById('telefono').value = tel;
+            document.getElementById('rol').value = rol;
+            document.getElementById('btn-submit').innerText = "Actualizar Cambios";
+            document.getElementById('password').required = false; 
+            document.getElementById('form-section').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Ojo de contraseña
+        const togglePassword = document.querySelector('#togglePassword');
+        const passwordField = document.querySelector('#password');
+        togglePassword.addEventListener('click', function() {
+            const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordField.setAttribute('type', type);
+            this.classList.toggle('fa-eye-slash');
+        });
+
+        // Desaparecer alertas después de 4 segundos
+        setTimeout(() => {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(a => {
+                a.style.transition = "opacity 0.5s ease";
+                a.style.opacity = "0";
+                setTimeout(() => a.remove(), 500);
+            });
+        }, 4000);
+
+        function openModal(id) {
+            const modal = document.getElementById(id);
+            modal.classList.add('is-open');
+            modal.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeModal(id) {
+            const modal = document.getElementById(id);
+            modal.classList.remove('is-open');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+
+        document.querySelectorAll('.modal-overlay').forEach(modal => {
+            modal.addEventListener('click', event => {
+                if (event.target === modal) {
+                    closeModal(modal.id);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

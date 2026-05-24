@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Punto de Venta | Login</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="background-animation"></div>
+    <div class="login-container">
+        <div class="login-box">
+            <div class="user-icon">
+                <img src="https://cdn-icons-png.flaticon.com/512/1144/1144760.png" alt="user">
+            </div>
+            <h2>¡Hola, Bienvenido!</h2>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                {% for category, message in messages %}
+                  <p class="error-msg" style="color: #ff4b2b; font-size: 0.9em; margin-bottom: 15px;">
+                    <i class="fas fa-exclamation-circle"></i> {{ message }}
+                  </p>
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+
+            <form action="/login" method="POST">
+                <div class="input-group">
+                    <i class="fas fa-envelope icon-input"></i>
+                    <input type="email" name="correo" placeholder="Email ID" required>
+                </div>
+
+                <div class="input-group password-group" style="position: relative;">
+                    <i class="fas fa-lock icon-input"></i>
+                    <input type="password" name="password" id="password" placeholder="Password" required>
+                    <i class="fas fa-eye toggle-password" id="togglePassword" 
+                       style="position: absolute; right: 10px; top: 35%; cursor: pointer; color: rgba(255,255,255,0.6);"></i>
+                </div>
+
+                <button type="submit" class="login-btn">LOGIN</button>
+                
+                <div class="options">
+                    <label><input type="checkbox"> Remember me</label>
+                    <a href="#">Forgot Password?</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const togglePassword = document.querySelector('#togglePassword');
+        const passwordField = document.querySelector('#password');
+
+        togglePassword.addEventListener('click', function () {
+            // Cambiar el tipo de input
+            const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordField.setAttribute('type', type);
+            
+            // Alternar el icono
+            this.classList.toggle('fa-eye');
+            this.classList.toggle('fa-eye-slash');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin | Historial de Ventas</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="admin-body">
+    <div class="background-animation"></div>
+
+    <div class="admin-container">
+        <header class="admin-header">
+            <h1 style="color: white;"><i class="fas fa-receipt"></i> Historial de Ventas</h1>
+    
+            <div style="display: flex; gap: 15px; align-items: center;">
+                <a href="/administrador" class="logout-btn" style="background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2);">
+                    <i class="fas fa-arrow-left"></i> <span>Volver</span>
+                </a>
+                <a href="/logout" class="logout-btn">
+                    <span>Salir</span>
+                    <i class="fas fa-sign-out-alt"></i>
+                </a>
+            </div>
+        </header>
+
+        <div class="table-container" style="margin-top: 20px;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID Venta</th>
+                        <th>ID Producto</th>
+                        <th>ID Cliente</th>
+                        <th>Cantidad</th>
+                        <th>Total</th>
+                        <th>Fecha Salida</th>
+                        <th>Talla</th>
+                        <th>Referencia de Pago</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for venta in ventas %}
+                    <tr>
+                        <td><strong>{{ venta[0] }}</strong></td>
+                        <td><span class="badge usuario">#{{ venta[1] }}</span></td>
+                        <td><span class="badge administrador">#{{ venta[2] }}</span></td>
+                        <td>{{ venta[3] }} pza(s)</td>
+                        <td style="color: #00ff88; font-weight: bold;">${{ venta[4] }}</td>
+                        <td>{{ venta[5] }}</td>
+                        <td>{{ venta[6] | default('N/A') }}</td>
+                        <td style="font-family: monospace; letter-spacing: 1px;">{{ venta[7] | default('Sin Referencia') }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" style="text-align: center; color: rgba(255,255,255,0.5); padding: 30px;">
+                            <i class="fas fa-folder-open" style="font-size: 24px; margin-bottom: 10px; display: block;"></i>
+                            No hay registros de ventas en la base de datos.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

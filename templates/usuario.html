@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="es" style="overflow-y: auto !important; height: auto !important;">
+<head>
+    <meta charset="UTF-8">
+    <title>Usuario | Gestión de Productos</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/usuario_style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="user-body" style="overflow-y: auto !important; height: auto !important; min-height: 100vh;">
+    <div class="background-animation"></div>
+
+    <div class="alert-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}">
+                <i class="fas {% if category == 'success' %}fa-check-circle{% else %}fa-exclamation-triangle{% endif %}"></i>
+                {{ message }}
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+    </div>
+    
+    <div class="admin-container">
+        <header class="admin-header">
+            <h1 style="color: white;"><i class="fas fa-boxes"></i> Panel de Productos</h1>
+            <div style="display: flex; gap: 15px; align-items: center;">
+                {% if es_admin %}
+                <a href="/administrador" class="logout-btn" style="background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2);">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>Volver al Dashboard</span>
+                </a>
+                {% endif %}
+                <a href="/logout" class="logout-btn">
+                    <span>Salir</span>
+                    <i class="fas fa-sign-out-alt"></i>
+                </a>
+            </div>
+        </header>
+
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 15px; margin-bottom: 25px;">
+            <button class="add-product-btn" onclick="openProductModal(this)" style="margin-bottom: 0;">
+                <i class="fas fa-plus-circle"></i> Nuevo Producto
+            </button>
+            
+            <div class="search-container">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" id="productSearch" placeholder="Buscar por nombre o marca..." autocomplete="off">
+            </div>
+        </div>
+
+        <div class="product-dashboard-cards">
+            <button class="product-stock-card" type="button" onclick="openStockModal(this)">
+                <span class="product-stock-icon"><i class="fas fa-exclamation-circle"></i></span>
+                <span class="product-stock-info">
+                    <span>Sin stock</span>
+                    <strong>{{ total_sin_stock | default(0) }}</strong>
+                </span>
+            </button>
+        </div>
+
+        <div class="modal-overlay" id="productModal" style="display: none; pointer-events: none;">
+            <div class="crud-card modal-content">
+                <span class="close-modal-btn" onclick="closeProductModal()">&times;</span>
+                <h3 id="product-form-title" style="color: white; margin-top: 0;">Agregar Nuevo Producto</h3>
+                
+                <form action="/guardar_producto" method="POST" enctype="multipart/form-data" id="productForm">
+                    <input type="hidden" name="id_producto" id="id_producto">
+                    
+                    <div class="form-grid">
+                        <div class="input-group">
+                            <i class="fas fa-tag icon-input"></i>
+                            <input type="text" name="nombre" id="prod_nombre" placeholder="Nombre del Producto" required>
+                        </div>
+                        <div class="input-group">
+                            <i class="fas fa-dollar-sign icon-input"></i>
+                            <input type="number" step="0.01" name="precio" id="prod_precio" placeholder="Precio" required>
+                        </div>
+                        <div class="input-group">
+                            <i class="fas fa-layer-group icon-input"></i>
+                            <input type="number" name="stock" id="prod_stock" placeholder="Stock / Cantidad" required>
+                        </div>
+                        
+                        <div class="input-group">
+                            <i class="fas fa-copyright icon-input"></i>
+                            <input type="text" name="marca" id="prod_marca" placeholder="Marca (Ej: Nike, Adidas)">
+                        </div>
+                        <div class="input-group">
+                            <i class="fas fa-ruler icon-input"></i>
+                            <input type="text" name="talla" id="prod_talla" placeholder="Talla (Ej: 27, M, G)">
+                        </div>
+                        <div class="input-group">
+                            <i class="fas fa-palette icon-input"></i>
+                            <input type="text" name="color" id="prod_color" placeholder="Color">
+                        </div>
+
+                        <div class="input-group" style="grid-column: 1 / -1;">
+                            <label class="file-label">
+                                <i class="fas fa-cloud-upload-alt"></i> <span id="file-chosen">Seleccionar Imagen</span>
+                                <input type="file" name="imagen" id="prod_imagen" accept="image/*" style="display: none;">
+                            </label>
+                        </div>
+                        <div class="input-group" style="grid-column: 1 / -1;">
+                            <textarea name="descripcion" id="prod_descripcion" placeholder="Descripción del producto..."></textarea>
+                        </div>
+                    </div>
+                    <button type="submit" class="save-product-btn" id="btn-submit-prod">Guardar Producto</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="modal-overlay" id="stockProductModal" style="display: none; pointer-events: none;">
+            <div class="crud-card modal-content stock-modal-content">
+                <span class="close-modal-btn" onclick="closeStockModal()">&times;</span>
+                <div class="stock-modal-header">
+                    <span class="product-stock-icon"><i class="fas fa-box-open"></i></span>
+                    <div>
+                        <h3 style="color: white; margin: 0;">Productos sin stock</h3>
+                        <p>Modifica o elimina productos agotados desde esta ventana.</p>
+                    </div>
+                </div>
+
+                <div class="product-stock-list">
+                    {% for prod in productos_sin_stock %}
+                    <article class="product-stock-item">
+                        <img src="{{ prod[8] }}" alt="{{ prod[1] }}" class="stock-product-img">
+                        <div class="stock-product-info">
+                            <strong>{{ prod[1] }}</strong>
+                            <span>{{ prod[2] if prod[2] else 'Sin descripción' }}</span>
+                            <div class="stock-product-meta">
+                                <span>#{{ prod[0] }}</span>
+                                <span>{{ prod[5] if prod[5] else 'Sin marca' }}</span>
+                                <span>{{ prod[6] if prod[6] else 'Talla N/A' }}</span>
+                                <span>${{ prod[3] }}</span>
+                            </div>
+                        </div>
+                        <div class="stock-product-actions">
+                            <button class="action-btn edit"
+                                    data-id="{{ prod[0] }}"
+                                    data-nombre="{{ prod[1] }}"
+                                    data-desc="{{ prod[2] if prod[2] else '' }}"
+                                    data-precio="{{ prod[3] }}"
+                                    data-stock="{{ prod[4] }}"
+                                    data-marca="{{ prod[5] if prod[5] else '' }}"
+                                    data-talla="{{ prod[6] if prod[6] else '' }}"
+                                    data-color="{{ prod[7] if prod[7] else '' }}"
+                                    onclick="editProductFromStock(this)">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <a href="{{ url_for('eliminar_producto', id=prod[0]) }}" class="action-btn delete" onclick="return confirm('¿Seguro que deseas eliminar este producto?')">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </div>
+                    </article>
+                    {% else %}
+                    <div class="stock-empty-state">
+                        <i class="fas fa-check-circle"></i>
+                        <p>No hay productos sin stock.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Imagen</th>
+                        <th>ID</th>
+                        <th>Producto</th>
+                        <th>Marca</th>
+                        <th>Talla</th>
+                        <th>Color</th>
+                        <th>Descripción</th>
+                        <th>Precio</th>
+                        <th>Stock</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="productTableBody">
+                    {% for prod in productos %}
+                    <tr>
+                        <td>
+                            <img src="{{ prod[8] }}" class="product-img-preview" alt="Imagen">
+                        </td>
+                        <td>{{ prod[0] }}</td>
+                        <td><strong>{{ prod[1] }}</strong></td>
+                        
+                        <td style="color: #ffffff;">{{ prod[5] if prod[5] else '-' }}</td>
+                        <td style="color: #ffffff;">{{ prod[6] if prod[6] else '-' }}</td>
+                        <td style="color: #ffffff;">{{ prod[7] if prod[7] else '-' }}</td>
+                        
+                        <td>{{ prod[2] if prod[2] else 'Sin descripción' }}</td>
+                        <td style="color: #00f0ff; font-weight: bold;">${{ prod[3] }}</td>
+                        <td>{{ prod[4] }} u.</td>
+                        <td>
+                            <button class="action-btn edit" 
+                                    data-id="{{ prod[0] }}"
+                                    data-nombre="{{ prod[1] }}"
+                                    data-desc="{{ prod[2] if prod[2] else '' }}"
+                                    data-precio="{{ prod[3] }}"
+                                    data-stock="{{ prod[4] }}"
+                                    data-marca="{{ prod[5] if prod[5] else '' }}"
+                                    data-talla="{{ prod[6] if prod[6] else '' }}"
+                                    data-color="{{ prod[7] if prod[7] else '' }}"
+                                    onclick="editProduct(this)">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <a href="{{ url_for('eliminar_producto', id=prod[0]) }}" class="action-btn delete" onclick="return confirm('¿Seguro que deseas eliminar este producto?')">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const fileIn = document.getElementById('prod_imagen');
+        const fileTxt = document.getElementById('file-chosen');
+        const modal = document.getElementById('productModal');
+        const stockModal = document.getElementById('stockProductModal');
+
+        if(fileIn) {
+            fileIn.addEventListener('change', function(){
+                fileTxt.textContent = this.files[0] ? this.files[0].name : "Seleccionar Imagen";
+            });
+        }
+
+        function openProductModal(trigger = null) {
+            document.getElementById('productForm').reset();
+            document.getElementById('id_producto').value = "";
+            if(fileTxt) fileTxt.textContent = "Seleccionar Imagen";
+            document.getElementById('product-form-title').innerText = "Agregar Nuevo Producto";
+            document.getElementById('btn-submit-prod').innerText = "Guardar Producto";
+            
+            showFloatingModal(modal, trigger);
+        }
+
+        function closeProductModal() {
+            modal.classList.remove('active');
+            setTimeout(() => {
+                modal.style.setProperty('display', 'none', 'important');
+                modal.style.setProperty('pointer-events', 'none', 'important');
+            }, 300);
+        }
+
+        function openStockModal(trigger = null) {
+            showFloatingModal(stockModal, trigger);
+        }
+
+        function closeStockModal() {
+            stockModal.classList.remove('active');
+            setTimeout(() => {
+                stockModal.style.setProperty('display', 'none', 'important');
+                stockModal.style.setProperty('pointer-events', 'none', 'important');
+            }, 300);
+        }
+
+        function editProductFromStock(button) {
+            closeStockModal();
+            setTimeout(() => {
+                editProduct(button);
+            }, 260);
+        }
+
+        function showFloatingModal(overlay, trigger = null) {
+            const content = overlay.querySelector('.modal-content');
+            overlay.style.setProperty('display', 'flex', 'important');
+            overlay.style.setProperty('pointer-events', 'auto', 'important');
+            overlay.classList.add('active');
+
+            requestAnimationFrame(() => {
+                const viewportHeight = window.innerHeight;
+                const minTop = 12;
+                const maxTop = Math.max(minTop, viewportHeight - 160);
+                let desiredTop = Math.round(viewportHeight * 0.08);
+
+                if (trigger) {
+                    const rect = trigger.getBoundingClientRect();
+                    desiredTop = rect.top - 80;
+                }
+
+                const top = Math.min(Math.max(desiredTop, minTop), maxTop);
+                content.style.setProperty('--modal-top', `${top}px`);
+            });
+        }
+
+        function editProduct(button) {
+            const id = button.getAttribute('data-id');
+            const nom = button.getAttribute('data-nombre');
+            const desc = button.getAttribute('data-desc');
+            const precio = button.getAttribute('data-precio');
+            const stock = button.getAttribute('data-stock');
+            
+            const marca = button.getAttribute('data-marca');
+            const talla = button.getAttribute('data-talla');
+            const color = button.getAttribute('data-color');
+
+            document.getElementById('product-form-title').innerText = "Modificar Producto (ID: " + id + ")";
+            document.getElementById('id_producto').value = id;
+            document.getElementById('prod_nombre').value = nom;
+            document.getElementById('prod_descripcion').value = desc;
+            document.getElementById('prod_precio').value = precio;
+            document.getElementById('prod_stock').value = stock;
+            
+            document.getElementById('prod_marca').value = marca;
+            document.getElementById('prod_talla').value = talla;
+            document.getElementById('prod_color').value = color;
+            
+            if(fileTxt) fileTxt.textContent = "Cambiar Imagen (Opcional)";
+            document.getElementById('btn-submit-prod').innerText = "Actualizar Cambios";
+            
+            showFloatingModal(modal, button);
+        }
+
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                closeProductModal();
+            }
+            if (event.target == stockModal) {
+                closeStockModal();
+            }
+        }
+
+        setTimeout(() => {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(a => {
+                a.style.transition = "opacity 0.5s ease";
+                a.style.opacity = "0";
+                setTimeout(() => a.remove(), 500);
+            });
+        }, 4000);
+
+        // --- LÓGICA DE FILTRADO EN TIEMPO REAL ---
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('productSearch');
+            const tableRows = document.querySelectorAll('#productTableBody tr');
+
+            searchInput.addEventListener('input', function(e) {
+                const searchTerm = e.target.value.toLowerCase().trim();
+
+                tableRows.forEach(row => {
+                    // Índices de celdas: 2 es Nombre (Producto), 3 es Marca
+                    const nameCell = row.cells[2];
+                    const brandCell = row.cells[3];
+
+                    const nameText = nameCell ? nameCell.textContent.toLowerCase() : '';
+                    const brandText = brandCell ? brandCell.textContent.toLowerCase() : '';
+
+                    if (nameText.includes(searchTerm) || brandText.includes(searchTerm)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

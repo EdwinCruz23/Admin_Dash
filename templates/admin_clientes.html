@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin | Gestión de Clientes</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="admin-body">
+    <div class="background-animation"></div>
+
+    <div class="alert-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}">
+                <i class="fas {% if category == 'success' %}fa-check-circle{% else %}fa-exclamation-triangle{% endif %}"></i>
+                {{ message }}
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+    </div>
+    
+    <div class="admin-container">
+        <header class="admin-header">
+            <h1 style="color: white;"><i class="fas fa-users"></i> Gestión de Clientes</h1>
+    
+            <div style="display: flex; gap: 15px; align-items: center;">
+                <a href="/administrador" class="logout-btn" style="background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2);">
+                    <i class="fas fa-arrow-left"></i> <span>Volver al Dashboard</span>
+                </a>
+                <a href="/logout" class="logout-btn">
+                    <span>Salir</span>
+                    <i class="fas fa-sign-out-alt"></i>
+                </a>
+            </div>
+        </header>
+
+        <div class="search-panel">
+            <div class="input-group search-input">
+                <i class="fas fa-search icon-input"></i>
+                <input type="text" id="clientSearch" placeholder="Buscar cliente por nombre" autocomplete="off">
+            </div>
+            <span class="search-hint" id="searchHint">{{ clientes|length }} cliente(s) registrados</span>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nombre Completo</th>
+                        <th>Correo</th>
+                        <th>Teléfono</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cliente in clientes %}
+                    <tr class="client-row" data-client-id="{{ cliente[0] }}" data-client-name="{{ (cliente[1] ~ ' ' ~ cliente[2]) | lower }}">
+                        <td>{{ cliente[0] }}</td>
+                        <td class="client-full-name">{{ cliente[1] }} {{ cliente[2] }}</td>
+                        <td>{{ cliente[3] }}</td>
+                        <td>{{ cliente[5] | default('N/A') }}</td>
+                        <td>
+                            <button class="action-btn view"
+                                    data-id="{{ cliente[0] }}"
+                                    data-name="{{ cliente[1] }} {{ cliente[2] }}"
+                                    onclick="showPurchases(this)">
+                                <i class="fas fa-receipt"></i>
+                            </button>
+                            <button class="action-btn edit" 
+                                    data-id="{{ cliente[0] }}"
+                                    data-nombre="{{ cliente[1] }}"
+                                    data-apellido="{{ cliente[2] }}"
+                                    data-correo="{{ cliente[3] }}"
+                                    data-telefono="{{ cliente[5] | default('') }}"
+                                    onclick="editCliente(this)">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="action-btn delete"
+                                    data-id="{{ cliente[0] }}"
+                                    data-name="{{ cliente[1] }} {{ cliente[2] }}"
+                                    onclick="openDeleteCliente(this)">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <section class="purchase-panel" id="purchasePanel">
+            <div class="purchase-panel-header">
+                <div>
+                    <span class="section-kicker">Compras del cliente</span>
+                    <h2 id="purchaseTitle">Selecciona un cliente</h2>
+                </div>
+                <span class="purchase-count" id="purchaseCount">0 compras</span>
+            </div>
+
+            <div class="table-container purchase-table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID Venta</th>
+                            <th>Producto</th>
+                            <th>Cantidad</th>
+                            <th>Total</th>
+                            <th>Fecha</th>
+                            <th>Talla</th>
+                            <th>Referencia</th>
+                        </tr>
+                    </thead>
+                    <tbody id="purchaseRows">
+                        {% for compra in compras_clientes %}
+                        <tr class="purchase-row" data-client-id="{{ compra[1] }}">
+                            <td><strong>{{ compra[0] }}</strong></td>
+                            <td>{{ compra[2] }} <span class="muted">#{{ compra[3] }}</span></td>
+                            <td>{{ compra[4] }} pza(s)</td>
+                            <td class="money">${{ compra[5] }}</td>
+                            <td>{{ compra[6] }}</td>
+                            <td>{{ compra[7] | default('N/A', true) }}</td>
+                            <td class="reference">{{ compra[8] | default('Sin referencia', true) }}</td>
+                        </tr>
+                        {% endfor %}
+                        <tr id="emptyPurchaseRow">
+                            <td colspan="7" class="empty-table-message">
+                                <i class="fas fa-user-clock"></i>
+                                Busca un cliente y presiona el botón de compras.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <div class="modal-overlay" id="clienteModal" aria-hidden="true">
+            <div class="floating-modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="clienteModalTitle">
+                <button class="modal-close" type="button" onclick="closeModal('clienteModal')" aria-label="Cerrar">
+                    <i class="fas fa-times"></i>
+                </button>
+                <div class="modal-header">
+                    <span class="modal-icon"><i class="fas fa-user-pen"></i></span>
+                    <div>
+                        <h2 id="clienteModalTitle">Editar cliente</h2>
+                        <p>Actualiza la información del cliente seleccionado.</p>
+                    </div>
+                </div>
+
+                <form action="/guardar_cliente" method="POST" id="clienteForm">
+                    <input type="hidden" name="id_clientes" id="id_clientes">
+                    
+                    <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
+                        <div class="input-group">
+                            <i class="fas fa-user icon-input"></i>
+                            <input type="text" name="nombre" id="nombre" placeholder="Nombre" required>
+                        </div>
+                        <div class="input-group">
+                            <i class="fas fa-signature icon-input"></i>
+                            <input type="text" name="apellido" id="apellido" placeholder="Apellido" required>
+                        </div>
+                        <div class="input-group">
+                            <i class="fas fa-envelope icon-input"></i>
+                            <input type="email" name="correo" id="correo" placeholder="Correo" required>
+                        </div>
+                        <div class="input-group">
+                            <i class="fas fa-lock icon-input"></i>
+                            <input type="password" name="password" id="password" placeholder="Nueva contraseña (opcional)">
+                            <i class="fas fa-eye toggle-password" id="togglePassword"></i>
+                        </div>
+                        <div class="input-group">
+                            <i class="fas fa-phone icon-input"></i>
+                            <input type="text" name="telefono" id="telefono" placeholder="Teléfono">
+                        </div>
+                    </div>
+                    <button type="submit" class="login-btn" id="btn-submit">Actualizar cambios</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="modal-overlay" id="deleteClienteModal" aria-hidden="true">
+            <div class="floating-modal" role="dialog" aria-modal="true" aria-labelledby="deleteClienteTitle">
+                <button class="modal-close" type="button" onclick="closeModal('deleteClienteModal')" aria-label="Cerrar">
+                    <i class="fas fa-times"></i>
+                </button>
+                <div class="modal-header">
+                    <span class="modal-icon danger"><i class="fas fa-trash"></i></span>
+                    <div>
+                        <h2 id="deleteClienteTitle">Eliminar cliente</h2>
+                        <p id="deleteClienteText">Esta acción quitará el registro del cliente.</p>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button class="secondary-btn" type="button" onclick="closeModal('deleteClienteModal')">Cancelar</button>
+                    <a href="#" class="danger-btn" id="confirmDeleteCliente">Eliminar</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const clientSearch = document.getElementById('clientSearch');
+        const clientRows = Array.from(document.querySelectorAll('.client-row'));
+        const searchHint = document.getElementById('searchHint');
+        const purchaseRows = Array.from(document.querySelectorAll('.purchase-row'));
+        const emptyPurchaseRow = document.getElementById('emptyPurchaseRow');
+        const purchaseTitle = document.getElementById('purchaseTitle');
+        const purchaseCount = document.getElementById('purchaseCount');
+
+        clientSearch.addEventListener('input', function() {
+            const query = this.value.trim().toLowerCase();
+            let visible = 0;
+
+            clientRows.forEach(row => {
+                const matches = row.getAttribute('data-client-name').includes(query);
+                row.style.display = matches ? '' : 'none';
+                if (matches) visible++;
+            });
+
+            searchHint.innerText = `${visible} cliente(s) encontrados`;
+        });
+
+        function showPurchases(button) {
+            const clientId = button.getAttribute('data-id');
+            const clientName = button.getAttribute('data-name');
+            let count = 0;
+
+            purchaseRows.forEach(row => {
+                const matches = row.getAttribute('data-client-id') === clientId;
+                row.style.display = matches ? '' : 'none';
+                if (matches) count++;
+            });
+
+            emptyPurchaseRow.style.display = count === 0 ? '' : 'none';
+            emptyPurchaseRow.querySelector('td').innerHTML = count === 0
+                ? '<i class="fas fa-folder-open"></i> Este cliente no tiene compras registradas.'
+                : '';
+            purchaseTitle.innerText = clientName;
+            purchaseCount.innerText = `${count} compra(s)`;
+            document.getElementById('purchasePanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        // Función para cargar los datos en el formulario al editar
+        function editCliente(button) {
+            const id = button.getAttribute('data-id');
+            const nom = button.getAttribute('data-nombre');
+            const ape = button.getAttribute('data-apellido');
+            const cor = button.getAttribute('data-correo');
+            const tel = button.getAttribute('data-telefono');
+
+            document.getElementById('clienteModalTitle').innerText = "Modificar Cliente (ID: " + id + ")";
+            document.getElementById('id_clientes').value = id;
+            document.getElementById('nombre').value = nom;
+            document.getElementById('apellido').value = ape;
+            document.getElementById('correo').value = cor;
+            document.getElementById('telefono').value = tel;
+            document.getElementById('btn-submit').innerText = "Actualizar Cambios";
+            document.getElementById('password').required = false; 
+            document.getElementById('password').value = "";
+            openModal('clienteModal');
+        }
+
+        function openDeleteCliente(button) {
+            const id = button.getAttribute('data-id');
+            const name = button.getAttribute('data-name');
+            document.getElementById('deleteClienteText').innerText = `¿Seguro que deseas eliminar a ${name}?`;
+            document.getElementById('confirmDeleteCliente').href = `/eliminar_cliente/${id}`;
+            openModal('deleteClienteModal');
+        }
+
+        function openModal(id) {
+            const modal = document.getElementById(id);
+            modal.classList.add('is-open');
+            modal.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeModal(id) {
+            const modal = document.getElementById(id);
+            modal.classList.remove('is-open');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+
+        // Conmutador para visualizar la contraseña
+        const togglePassword = document.querySelector('#togglePassword');
+        const passwordField = document.querySelector('#password');
+        togglePassword.addEventListener('click', function() {
+            const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordField.setAttribute('type', type);
+            this.classList.toggle('fa-eye-slash');
+        });
+
+        // Ocultar notificaciones Flash automáticamente tras 4 segundos
+        setTimeout(() => {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(a => {
+                a.style.transition = "opacity 0.5s ease";
+                a.style.opacity = "0";
+                setTimeout(() => a.remove(), 500);
+            });
+        }, 4000);
+
+        purchaseRows.forEach(row => row.style.display = 'none');
+        document.querySelectorAll('.modal-overlay').forEach(modal => {
+            modal.addEventListener('click', event => {
+                if (event.target === modal) {
+                    closeModal(modal.id);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
