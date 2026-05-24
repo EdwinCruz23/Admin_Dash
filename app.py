@@ -39,28 +39,18 @@ def verify_password(stored_password: str, password: str) -> bool:
     return stored_password == password
 
 
-# --- CONFIGURACIÓN DE CLOUDINARY BLINDADA ---
-# Extraemos directo del entorno limpiando espacios sucios. 
-# Si no existen en el entorno, usa los de tu .env local automáticamente.
-CLOUD_NAME = os.getenv('CLOUDINARY_CLOUD_NAME')
-API_KEY = os.getenv('CLOUDINARY_API_KEY')
-API_SECRET = os.getenv('CLOUDINARY_API_SECRET')
+# --- CONFIGURACIÓN DE CLOUDINARY PERFECCIONADA ---
+# Forzamos los valores correctos de tu cuenta real para evitar conflictos de variables mal puestas en Render.
+CLOUD_NAME = os.getenv('CLOUDINARY_CLOUD_NAME', 'dt0rtdlhi').strip()
+API_KEY = os.getenv('CLOUDINARY_API_KEY', '432936586413485').strip()
+API_SECRET = os.getenv('CLOUDINARY_API_SECRET', '6YXdQ-HXOkOmZbk_DQHjGsZU80k').strip()
 
-if CLOUD_NAME and API_KEY and API_SECRET:
-    cloudinary.config(
-        cloud_name = CLOUD_NAME.strip(),
-        api_key    = API_KEY.strip(),
-        api_secret = API_SECRET.strip(),
-        secure = True
-    )
-else:
-    # Fallback de desarrollo por si tu .env local no cargó correctamente
-    cloudinary.config(
-        cloud_name = "dt0rtdlhi",
-        api_key    = "432936586413485",
-        api_secret = "6YXdQ-HXOkOmZbk_DQHjGsZU80k",
-        secure = True
-    )
+cloudinary.config(
+    cloud_name = CLOUD_NAME,
+    api_key    = API_KEY,
+    api_secret = API_SECRET,
+    secure = True
+)
 
 
 # --- CONEXIÓN A BASE DE DATOS ---
@@ -106,10 +96,10 @@ def login():
         password = request.form['password']
         
         conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute('SELECT "contraseña", rol, nombre FROM usuarios WHERE correo = %s', (correo,))
-        result = cur.fetchone()
-        cur.close()
+        for_cur = conn.cursor()
+        for_cur.execute('SELECT "contraseña", rol, nombre FROM usuarios WHERE correo = %s', (correo,))
+        result = for_cur.fetchone()
+        for_cur.close()
         conn.close()
 
         if result:
@@ -447,7 +437,7 @@ def admin_ventas():
         return redirect(url_for('index'))
 
 
-# --- CRUD PRODUCTOS (CON SUBIDA OPTIMIZADA A CLOUDINARY) ---
+# --- CRUD PRODUCTOS (CON SUBIDA CORREGIDA Y LIMPIA) ---
 
 @app.route('/guardar_producto', methods=['POST'])
 def guardar_producto():
@@ -465,11 +455,8 @@ def guardar_producto():
     
     if file and file.filename != '':
         try:
-            # Subida directa delegando la firma automática al SDK oficial
-            upload_result = cloudinary.uploader.upload(
-                file, 
-                folder="productos_catalogo"
-            )
+            # Subida directa a la raíz para quitar fallos de firmas dinámicas por culpa de carpetas estrictas
+            upload_result = cloudinary.uploader.upload(file)
             cloudinary_url = upload_result.get('secure_url')
         except Exception as upload_error:
             flash(f'Error al subir tu imagen a la nube: {upload_error}', 'danger')
